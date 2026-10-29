@@ -264,8 +264,17 @@ export default function MainDashboard() {
           .single();
 
         if (profile) {
-          if (!['super_admin', 'section1_admin', 'section2_admin'].includes(profile.role)) {
-            router.push('/sector-dashboard');
+          if (['zone_reader'].includes(profile.role)) {
+            router.push('/zone-dashboard');
+            return;
+          } else if (['division_reader'].includes(profile.role)) {
+            router.push('/division-dashboard');
+            return;
+          } else if (['circle_reader'].includes(profile.role)) {
+            router.push('/circle-dashboard');
+            return;
+          } else if (!['super_admin', 'section1_admin', 'section2_admin'].includes(profile.role)) {
+            router.push('/login');
             return;
           }
 

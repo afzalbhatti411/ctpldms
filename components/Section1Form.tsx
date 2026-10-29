@@ -9,6 +9,25 @@ const TRADITIONAL_SECTORS = [
   'Raiwind', 'Bhobatian', 'KAHNA', 'TRU Saggian (SD)'
 ];
 
+const CIRCLE_TO_TRADITIONAL_SECTORS_MAP: { [key: string]: string[] } = {
+  'city': [], // City circle has no traditional commercial vehicle sectors
+  'saggian': ['SAGGIAN', 'BAND ROAD', 'TRU Saggian (SD)'],
+  'shahdara': ['Shahdara', 'Lori Adda', 'SHERAKOT', 'Ravi Road'],
+  'civil line': ['Garhi Shahu', 'Mackleod Road'],
+  'manawan': ['MUGHALPURA', 'WAHGA', 'Shalimar'],
+  'anarkali': ['Lower Mall', 'Anarkali', 'Mall-III'],
+  'ichra': ['Ichra', 'Mozang'],
+  'nawankot': ['Wahdat Road', 'Nawankot', 'Multan Road', 'SHERAKOT'],
+  'cantt': ['Mall-I', 'Mall-II', 'Cantt'],
+  'defence raya': ['Defence-B', 'Bedian'],
+  'airport': ['Defence-A', 'Old Airport', 'Walton', 'New Airport'],
+  'model town': ['KAHNA', 'Model Town', 'Kot Lakhpat'],
+  'gulberg': ['gulberg', 'Main Market', 'Shadman'],
+  'township': ['Township', 'Green Town'],
+  'saddar': ['Raiwind', 'Bhobatiyan', 'Kheya Bane Jinnah'],
+  'johar town': ['Niaz Baig', 'Manga Mandi', 'Johar Town']
+};
+
 const VEHICLE_CATEGORIES = [
   'Dump', '22 Wheeler / Trailer', 'Truck', 'Bus / Coaster', 'Pick Up', 'Mazda'
 ];
@@ -16,6 +35,7 @@ const VEHICLE_CATEGORIES = [
 export default function Section1Form() {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [allowedSectors, setAllowedSectors] = useState<string[]>([]); // Default empty to prevent flash of all sectors
   const [isSectorLocked, setIsSectorLocked] = useState(false);
   const regInputRef = useRef<HTMLInputElement>(null);
 
@@ -49,18 +69,25 @@ export default function Section1Form() {
           .eq('id', session.user.id)
           .single();
 
-        if (profile && profile.role === 'sector_officer') {
-          setIsSectorLocked(true);
-          const matched = TRADITIONAL_SECTORS.find(
-            s => s.toLowerCase() === profile.jurisdiction.toLowerCase()
+        if (profile && profile.role === 'circle_reader' && profile.jurisdiction) {
+          const circleKey = profile.jurisdiction.trim().toLowerCase();
+          const mappedTraditional = CIRCLE_TO_TRADITIONAL_SECTORS_MAP[circleKey] || [];
+          
+          const filtered = TRADITIONAL_SECTORS.filter(sec => 
+            mappedTraditional.some(m => m.toLowerCase() === sec.toLowerCase())
           );
-          setFormData(prev => ({
-            ...prev,
-            entryDate: today,
-            sectorName: matched || profile.jurisdiction
-          }));
-          return;
+
+          setAllowedSectors(filtered);
+          if (filtered.length === 1) {
+            setIsSectorLocked(true);
+            setFormData(prev => ({ ...prev, entryDate: today, sectorName: filtered[0] }));
+          }
+        } else {
+          // Admins or non-restricted users see all 13 traditional sectors
+          setAllowedSectors(TRADITIONAL_SECTORS);
         }
+      } else {
+        setAllowedSectors(TRADITIONAL_SECTORS);
       }
 
       setFormData(prev => ({ ...prev, entryDate: today }));
@@ -188,7 +215,7 @@ export default function Section1Form() {
       <div className="border-b pb-4 mb-6 flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">HTV/LTV Commercial Vehicle Logs - Section-1</h2>
-          <p className="text-sm text-gray-500 mt-1">City Traffic Police Lahore - Across 13 traditional sectors</p>
+          <p className="text-sm text-gray-500 mt-1">City Traffic Police Lahore - Authorized Jurisdiction</p>
         </div>
         <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-lg font-semibold text-sm">
           Step {currentStep} of 3
@@ -201,103 +228,110 @@ export default function Section1Form() {
         <div className={`h-2 flex-1 rounded-full ${currentStep >= 3 ? 'bg-blue-600' : 'bg-gray-200'}`} />
       </div>
 
-      {/* STEP 1 */}
-      {currentStep === 1 && (
-        <form onSubmit={handleNext} className="space-y-6">
-          <h3 className="text-lg font-semibold text-blue-900 border-b pb-2">Step 1: Vehicle Identification</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Date</label>
-              <input 
-                type="date" 
-                name="entryDate"
-                value={formData.entryDate}
-                onChange={handleChange}
-                className="w-full rounded-lg border border-gray-300 p-3 text-gray-800 shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition"
-                required
-              />
+      {allowedSectors.length === 0 ? (
+        <div className="p-6 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-sm font-medium text-center space-y-2">
+          <p className="font-bold text-base">No Traditional Sectors Under Your Jurisdiction</p>
+          <p>Your assigned circle does not have any of the 13 traditional commercial vehicle sectors assigned for Section-1 reporting. Selection is disabled.</p>
+        </div>
+      ) : (
+        /* STEP 1 */
+        currentStep === 1 && (
+          <form onSubmit={handleNext} className="space-y-6">
+            <h3 className="text-lg font-semibold text-blue-900 border-b pb-2">Step 1: Vehicle Identification</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Date</label>
+                <input 
+                  type="date" 
+                  name="entryDate"
+                  value={formData.entryDate}
+                  onChange={handleChange}
+                  className="w-full rounded-lg border border-gray-300 p-3 text-gray-800 shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Traditional Sector Name {isSectorLocked && <span className="text-xs text-blue-600 font-bold">(Locked to your jurisdiction)</span>}
+                </label>
+                <select 
+                  name="sectorName"
+                  value={formData.sectorName}
+                  onChange={handleChange}
+                  disabled={isSectorLocked}
+                  className={`w-full rounded-lg border border-gray-300 p-3 text-gray-800 shadow-sm outline-none transition ${isSectorLocked ? 'bg-gray-100 font-bold cursor-not-allowed select-none' : 'bg-white'}`}
+                  required
+                >
+                  <option value="">-- Select Sector --</option>
+                  {allowedSectors.map(sector => (
+                    <option key={sector} value={sector}>{sector}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Vehicle Category</label>
+                <select 
+                  name="vehicleCategory"
+                  value={formData.vehicleCategory}
+                  onChange={handleChange}
+                  className="w-full rounded-lg border border-gray-300 p-3 text-gray-800 shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition"
+                  required
+                >
+                  <option value="">-- Select Category --</option>
+                  {VEHICLE_CATEGORIES.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Company / Adda Name <span className="text-xs font-normal text-gray-400">(Optional)</span>
+                </label>
+                <input 
+                  type="text" 
+                  name="companyAddaName"
+                  value={formData.companyAddaName}
+                  onChange={handleChange}
+                  placeholder="e.g. National Logistics Cell"
+                  className="w-full rounded-lg border border-gray-300 p-3 text-gray-800 shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Registration No. <span className="text-xs font-normal text-gray-500">(Must include English words + digits, e.g. LHE-123)</span>
+                </label>
+                <input 
+                  ref={regInputRef}
+                  type="text" 
+                  name="registrationNo"
+                  value={formData.registrationNo}
+                  onChange={handleChange}
+                  onInput={handleRegistrationInput}
+                  placeholder="e.g. LHE-123"
+                  className="w-full rounded-lg border border-gray-300 p-3 text-gray-800 shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition uppercase"
+                  required
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Traditional Sector Name {isSectorLocked && <span className="text-xs text-blue-600 font-bold">(Locked to your jurisdiction)</span>}
-              </label>
-              <select 
-                name="sectorName"
-                value={formData.sectorName}
-                onChange={handleChange}
-                disabled={isSectorLocked}
-                className={`w-full rounded-lg border border-gray-300 p-3 text-gray-800 shadow-sm outline-none transition ${isSectorLocked ? 'bg-gray-100 font-bold cursor-not-allowed select-none' : 'bg-white'}`}
-                required
+            <div className="flex justify-end pt-4 border-t">
+              <button 
+                type="submit"
+                className="bg-blue-600 text-white font-semibold px-8 py-3 rounded-lg shadow hover:bg-blue-700 transition"
               >
-                <option value="">-- Select Sector --</option>
-                {TRADITIONAL_SECTORS.map(sector => (
-                  <option key={sector} value={sector}>{sector}</option>
-                ))}
-              </select>
+                Next: Driver & Legal Particulars &rarr;
+              </button>
             </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Vehicle Category</label>
-              <select 
-                name="vehicleCategory"
-                value={formData.vehicleCategory}
-                onChange={handleChange}
-                className="w-full rounded-lg border border-gray-300 p-3 text-gray-800 shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition"
-                required
-              >
-                <option value="">-- Select Category --</option>
-                {VEHICLE_CATEGORIES.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Company / Adda Name <span className="text-xs font-normal text-gray-400">(Optional)</span>
-              </label>
-              <input 
-                type="text" 
-                name="companyAddaName"
-                value={formData.companyAddaName}
-                onChange={handleChange}
-                placeholder="e.g. National Logistics Cell"
-                className="w-full rounded-lg border border-gray-300 p-3 text-gray-800 shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Registration No. <span className="text-xs font-normal text-gray-500">(Must include English words + digits, e.g. LHE-123)</span>
-              </label>
-              <input 
-                ref={regInputRef}
-                type="text" 
-                name="registrationNo"
-                value={formData.registrationNo}
-                onChange={handleChange}
-                onInput={handleRegistrationInput}
-                placeholder="e.g. LHE-123"
-                className="w-full rounded-lg border border-gray-300 p-3 text-gray-800 shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition uppercase"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-4 border-t">
-            <button 
-              type="submit"
-              className="bg-blue-600 text-white font-semibold px-8 py-3 rounded-lg shadow hover:bg-blue-700 transition"
-            >
-              Next: Driver & Legal Particulars &rarr;
-            </button>
-          </div>
-        </form>
+          </form>
+        )
       )}
 
       {/* STEP 2 */}
-      {currentStep === 2 && (
+      {allowedSectors.length > 0 && currentStep === 2 && (
         <form onSubmit={handleNext} className="space-y-6">
           <h3 className="text-lg font-semibold text-blue-900 border-b pb-2">Step 2: Driver & Legal Particulars</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -400,7 +434,7 @@ export default function Section1Form() {
       )}
 
       {/* STEP 3 */}
-      {currentStep === 3 && (
+      {allowedSectors.length > 0 && currentStep === 3 && (
         <form onSubmit={handleSubmit} className="space-y-6">
           <h3 className="text-lg font-semibold text-blue-900 border-b pb-2">Step 3: Safety Audit & Enforcement</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

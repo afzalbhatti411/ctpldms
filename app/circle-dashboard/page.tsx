@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/app/lib/supabase';
 
@@ -57,6 +58,25 @@ const FULL_SECTORS_LIST = [
   { sector: 'Niaz Baig', zone: 'Saddar Zone', division: 'Saddar', circle: 'Johar Town' },
   { sector: 'Manga Mandi', zone: 'Saddar Zone', division: 'Saddar', circle: 'Johar Town' }
 ];
+
+const CIRCLE_TO_TRADITIONAL_SECTORS_MAP: { [key: string]: string[] } = {
+  'city': [],
+  'saggian': ['SAGGIAN', 'BAND ROAD', 'TRU Saggian (SD)'],
+  'shahdara': ['Shahdara', 'Lori Adda', 'SHERAKOT', 'Ravi Road'],
+  'civil line': ['Garhi Shahu', 'Mackleod Road'],
+  'manawan': ['MUGHALPURA', 'WAHGA', 'Shalimar'],
+  'anarkali': ['Lower Mall', 'Anarkali', 'Mall-III'],
+  'ichra': ['Ichra', 'Mozang'],
+  'nawankot': ['Wahdat Road', 'Nawankot', 'Multan Road', 'SHERAKOT'],
+  'cantt': ['Mall-I', 'Mall-II', 'Cantt'],
+  'defence raya': ['Defence-B', 'Bedian'],
+  'airport': ['Defence-A', 'Old Airport', 'Walton', 'New Airport'],
+  'model town': ['KAHNA', 'Model Town', 'Kot Lakhpat'],
+  'gulberg': ['gulberg', 'Main Market', 'Shadman'],
+  'township': ['Township', 'Green Town'],
+  'saddar': ['Raiwind', 'Bhobatiyan', 'Kheya Bane Jinnah'],
+  'johar town': ['Niaz Baig', 'Manga Mandi', 'Johar Town']
+};
 
 function ChangePasswordModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [newPassword, setNewPassword] = useState('');
@@ -187,6 +207,10 @@ export default function CircleDashboard() {
   const [selectedDate, setSelectedDate] = useState('');
   const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
   const [vehicleLogs, setVehicleLogs] = useState<any[]>([]);
+  
+  const [allAttendanceHistory, setAllAttendanceHistory] = useState<any[]>([]);
+  const [allVehicleHistory, setAllVehicleHistory] = useState<any[]>([]);
+  const [historyTab, setHistoryTab] = useState<'section1' | 'section2'>('section2');
 
   useEffect(() => {
     const todayStr = new Date().toISOString().split('T')[0];
@@ -217,9 +241,11 @@ export default function CircleDashboard() {
 
       setCurrentUser(profile);
 
-      const circleName = profile.jurisdiction.trim().toLowerCase();
+      const circleName = profile.jurisdiction ? profile.jurisdiction.trim().toLowerCase() : '';
+      const circleKey = circleName; // Defined here before usage
+
       const concernedSectors = FULL_SECTORS_LIST.filter(
-        s => s.circle.toLowerCase() === circleName
+        s => s.circle.trim().toLowerCase() === circleName
       ).map(s => s.sector);
 
       if (concernedSectors.length > 0) {
@@ -231,13 +257,36 @@ export default function CircleDashboard() {
 
         if (attData) setAttendanceLogs(attData);
 
-        const { data: vehData } = await supabase
-          .from('section1_vehicle_logs')
-          .select('*')
-          .eq('entry_date', selectedDate)
-          .in('sector_name', concernedSectors);
+        const tradSectors = CIRCLE_TO_TRADITIONAL_SECTORS_MAP[circleKey] || [];
+        if (tradSectors.length > 0) {
+          const { data: vehData } = await supabase
+            .from('section1_vehicle_logs')
+            .select('*')
+            .eq('entry_date', selectedDate)
+            .in('sector_name', tradSectors);
 
-        if (vehData) setVehicleLogs(vehData);
+          if (vehData) setVehicleLogs(vehData);
+        }
+
+        const { data: allAtt } = await supabase
+          .from('section2_attendance_logs')
+          .select('*')
+          .in('sector', concernedSectors)
+          .order('entry_date', { ascending: false })
+          .order('created_at', { ascending: false });
+
+        if (allAtt) setAllAttendanceHistory(allAtt);
+
+        if (tradSectors.length > 0) {
+          const { data: allVeh } = await supabase
+            .from('section1_vehicle_logs')
+            .select('*')
+            .in('sector_name', tradSectors)
+            .order('entry_date', { ascending: false })
+            .order('created_at', { ascending: false });
+
+          if (allVeh) setAllVehicleHistory(allVeh);
+        }
       }
 
       setLoading(false);
@@ -260,8 +309,11 @@ export default function CircleDashboard() {
   }
 
   const assignedCircle = currentUser?.jurisdiction || '';
+  const circleKey = assignedCircle.trim().toLowerCase();
+  const hasTraditionalSectors = (CIRCLE_TO_TRADITIONAL_SECTORS_MAP[circleKey] || []).length > 0;
+  
   const mySectors = FULL_SECTORS_LIST.filter(
-    s => s.circle.toLowerCase() === assignedCircle.toLowerCase()
+    s => s.circle.trim().toLowerCase() === circleKey
   );
 
   return (
@@ -275,7 +327,7 @@ export default function CircleDashboard() {
               <img src="/ctpl-logo.png" alt="CTPL Logo" className="h-full w-full object-contain" />
             </div>
             <div>
-              <h1 className="text-xl font-black tracking-tight text-white">Circle Oversight Portal</h1>
+              <h1 className="text-xl font-black tracking-tight text-white">Circle Data Entry & Oversight Portal</h1>
               <p className="text-xs text-cyan-400 font-medium">
                 Assigned Circle: <span className="font-bold text-white uppercase">{assignedCircle}</span>
               </p>
@@ -338,11 +390,70 @@ export default function CircleDashboard() {
           </div>
         )}
 
-        {/* Section-2 Attendance & Nil Diary Status Table */}
+        {/* SECTION-1: Vehicle Inspection Logs Summary (Selected Date) - CONDITIONAL BASED ON JURISDICTION */}
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
+          <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+            <div>
+              <h3 className="text-base font-black text-white tracking-tight">Section-1: Vehicle Inspection Logs ({selectedDate})</h3>
+              <p className="text-xs text-slate-400 mt-1">Commercial vehicle audit logs recorded by your assigned circle sectors for the selected date.</p>
+            </div>
+            {hasTraditionalSectors ? (
+              <Link 
+                href="/section1" 
+                className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 text-xs font-semibold transition"
+              >
+                + Add Vehicle Log
+              </Link>
+            ) : (
+              <span className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-500 border border-slate-700 text-xs font-semibold cursor-not-allowed">
+                Not Applicable
+              </span>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            {!hasTraditionalSectors ? (
+              <p className="text-xs text-slate-500 text-center py-6">Section-1 vehicle audits are not applicable to your circle jurisdiction.</p>
+            ) : vehicleLogs.length === 0 ? (
+              <p className="text-xs text-slate-500 text-center py-8">No vehicle inspection logs recorded for this date in your assigned circle.</p>
+            ) : (
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 uppercase font-mono text-[10px]">
+                    <th className="py-3 px-4">Sector Name</th>
+                    <th className="py-3 px-4">Category</th>
+                    <th className="py-3 px-4">Reg No.</th>
+                    <th className="py-3 px-4">Driver Name</th>
+                    <th className="py-3 px-4">License / CNIC</th>
+                    <th className="py-3 px-4">Action Taken</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
+                  {vehicleLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-slate-950/50 transition">
+                      <td className="py-3 px-4 font-bold text-cyan-400">{log.sector_name}</td>
+                      <td className="py-3 px-4">{log.vehicle_category}</td>
+                      <td className="py-3 px-4 font-bold text-white">{log.registration_no}</td>
+                      <td className="py-3 px-4">{log.driver_name}</td>
+                      <td className="py-3 px-4 text-[11px] text-slate-400">{log.driver_license_no} <br /> {log.driver_cnic}</td>
+                      <td className="py-3 px-4">
+                        <span className="px-2.5 py-1 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20 text-[10px]">
+                          {log.action_taken}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* SECTION-2: Attendance & Nil Diary Status Table (Selected Date) */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
           <div className="border-b border-slate-800 pb-4">
             <h3 className="text-base font-black text-white tracking-tight">Section-2: Attendance & Nil Diary Status ({selectedDate})</h3>
-            <p className="text-xs text-slate-400 mt-1">Live submission status across all sectors in this circle.</p>
+            <p className="text-xs text-slate-400 mt-1">Live submission status across your assigned circle sectors for the selected date.</p>
           </div>
 
           <div className="overflow-x-auto">
@@ -355,6 +466,7 @@ export default function CircleDashboard() {
                   <th className="py-3 px-4">Total Posted</th>
                   <th className="py-3 px-4">Active Officers</th>
                   <th className="py-3 px-4">Nil Reason / Breakdown</th>
+                  <th className="py-3 px-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
@@ -391,6 +503,14 @@ export default function CircleDashboard() {
                           <span className="text-slate-600">No report submitted</span>
                         )}
                       </td>
+                      <td className="py-3 px-4 text-right">
+                        <Link 
+                          href="/section2" 
+                          className="px-3 py-1.5 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/30 text-cyan-300 text-[10px] font-semibold transition"
+                        >
+                          {log ? 'Edit / Update' : '+ Submit Report'}
+                        </Link>
+                      </td>
                     </tr>
                   );
                 })}
@@ -399,47 +519,120 @@ export default function CircleDashboard() {
           </div>
         </div>
 
-        {/* Section-1 Vehicle Inspection Logs Summary */}
+        {/* FULL HISTORICAL SUBMISSIONS ARCHIVE */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
-          <div className="border-b border-slate-800 pb-4">
-            <h3 className="text-base font-black text-white tracking-tight">Section-1: Vehicle Inspection Logs ({selectedDate})</h3>
-            <p className="text-xs text-slate-400 mt-1">Commercial vehicle audit logs recorded by sectors under this circle.</p>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-4">
+            <div>
+              <h3 className="text-lg font-black text-white tracking-tight">Circle Submission History & Archives</h3>
+              <p className="text-xs text-slate-400 mt-1">Review all past submitted entries across your assigned circle sectors.</p>
+            </div>
+            
+            {/* History Tab Switcher */}
+            <div className="flex bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+              {hasTraditionalSectors && (
+                <button 
+                  onClick={() => setHistoryTab('section1')}
+                  className={`px-4 py-2 rounded-lg text-xs font-semibold transition ${historyTab === 'section1' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                >
+                  Section-1 Vehicle Logs ({allVehicleHistory.length})
+                </button>
+              )}
+              <button 
+                onClick={() => setHistoryTab('section2')}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold transition ${historyTab === 'section2' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+              >
+                Section-2 Attendance ({allAttendanceHistory.length})
+              </button>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            {vehicleLogs.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center py-8">No vehicle inspection logs recorded for this date in your circle.</p>
-            ) : (
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 uppercase font-mono text-[10px]">
-                    <th className="py-3 px-4">Sector Name</th>
-                    <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4">Reg No.</th>
-                    <th className="py-3 px-4">Driver Name</th>
-                    <th className="py-3 px-4">License / CNIC</th>
-                    <th className="py-3 px-4">Action Taken</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
-                  {vehicleLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-950/50 transition">
-                      <td className="py-3 px-4 font-bold text-cyan-400">{log.sector_name}</td>
-                      <td className="py-3 px-4">{log.vehicle_category}</td>
-                      <td className="py-3 px-4 font-bold text-white">{log.registration_no}</td>
-                      <td className="py-3 px-4">{log.driver_name}</td>
-                      <td className="py-3 px-4 text-[11px] text-slate-400">{log.driver_license_no} <br /> {log.driver_cnic}</td>
-                      <td className="py-3 px-4">
-                        <span className="px-2.5 py-1 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20 text-[10px]">
-                          {log.action_taken}
-                        </span>
-                      </td>
+          {/* Section-1 Vehicle Logs History Table */}
+          {hasTraditionalSectors && historyTab === 'section1' && (
+            <div className="overflow-x-auto">
+              {allVehicleHistory.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-8">No historical vehicle inspection records found for your assigned circle.</p>
+              ) : (
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 uppercase font-mono text-[10px]">
+                      <th className="py-3 px-4">Date</th>
+                      <th className="py-3 px-4">Sector</th>
+                      <th className="py-3 px-4">Category</th>
+                      <th className="py-3 px-4">Reg No.</th>
+                      <th className="py-3 px-4">Driver Name</th>
+                      <th className="py-3 px-4">Action Taken</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
+                    {allVehicleHistory.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-950/50 transition">
+                        <td className="py-3 px-4 font-bold text-cyan-400">{log.entry_date}</td>
+                        <td className="py-3 px-4 font-bold text-white">{log.sector_name}</td>
+                        <td className="py-3 px-4">{log.vehicle_category}</td>
+                        <td className="py-3 px-4 font-bold text-white">{log.registration_no}</td>
+                        <td className="py-3 px-4">{log.driver_name}</td>
+                        <td className="py-3 px-4">
+                          <span className="px-2.5 py-1 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20 text-[10px]">
+                            {log.action_taken}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {/* Section-2 Attendance History Table */}
+          {historyTab === 'section2' && (
+            <div className="overflow-x-auto">
+              {allAttendanceHistory.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-8">No historical attendance records found for your assigned circle.</p>
+              ) : (
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 uppercase font-mono text-[10px]">
+                      <th className="py-3 px-4">Date</th>
+                      <th className="py-3 px-4">Sector</th>
+                      <th className="py-3 px-4">Diary Status</th>
+                      <th className="py-3 px-4">Total Posted</th>
+                      <th className="py-3 px-4">Active Officers</th>
+                      <th className="py-3 px-4">Breakdown Details</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
+                    {allAttendanceHistory.map((log) => {
+                      let breakdown: any = {};
+                      try {
+                        breakdown = JSON.parse(log.nil_reason || '{}');
+                      } catch (e) {}
+
+                      return (
+                        <tr key={log.id} className="hover:bg-slate-950/50 transition">
+                          <td className="py-3 px-4 font-bold text-cyan-400">{log.entry_date}</td>
+                          <td className="py-3 px-4 font-bold text-white">{log.sector}</td>
+                          <td className="py-3 px-4">
+                            <span className={`px-2.5 py-1 rounded-md text-[10px] border ${log.diary_status === 'Active' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' : 'bg-amber-500/10 text-amber-300 border-amber-500/20'}`}>
+                              {log.diary_status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-bold text-white">{log.total_strength}</td>
+                          <td className="py-3 px-4 font-bold text-emerald-400">{log.present_strength}</td>
+                          <td className="py-3 px-4 text-[11px] text-slate-400 leading-relaxed">
+                            <div>Rest/Leave: <span className="text-white">{breakdown.restLeave || 0}</span> | Absent: <span className="text-white">{breakdown.absent || 0}</span></div>
+                            {breakdown.specialDuty?.fig > 0 && <div>Special Duty: {breakdown.specialDuty.fig} ({breakdown.specialDuty.details})</div>}
+                            {breakdown.mobileIssue?.fig > 0 && <div>Mobile Issue: {breakdown.mobileIssue.fig} ({breakdown.mobileIssue.details})</div>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
         </div>
 
       </main>

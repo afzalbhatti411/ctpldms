@@ -47,14 +47,14 @@ export default function LoginPage() {
       // Role-Based Routing Matrix
       if (['super_admin', 'section1_admin', 'section2_admin'].includes(profile.role)) {
         router.push('/'); // Master HQ Dashboard with Full Global Rights
+      } else if (profile.role === 'zone_reader') {
+        router.push('/zone-dashboard'); // Zonal Reader Oversight Portal
+      } else if (profile.role === 'division_reader') {
+        router.push('/division-dashboard'); // Divisional Reader Oversight Portal
       } else if (profile.role === 'circle_reader') {
         router.push('/circle-dashboard'); // Circle Reader Oversight Portal
-      } else if (profile.role === 'division_reader') {
-        router.push('/division-dashboard'); // Division Reader Oversight Portal (upcoming)
-      } else if (profile.role === 'zone_reader') {
-        router.push('/zone-dashboard'); // Zone Reader Oversight Portal (upcoming)
       } else {
-        router.push('/sector-dashboard'); // Sector/Field Officer Dashboard
+        throw new Error('Unauthorized role configuration detected.');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to authenticate. Please check your credentials.');

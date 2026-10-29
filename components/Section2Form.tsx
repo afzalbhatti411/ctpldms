@@ -63,12 +63,32 @@ const FULL_SECTORS_LIST = [
   { sr: 45, sector: 'Manga Mandi', zone: 'Saddar Zone', division: 'Saddar', circle: 'Johar Town' }
 ];
 
+const CIRCLE_TO_SECTORS_MAP: { [key: string]: string[] } = {
+  'city': ['Railway station', 'KOTWALI', 'MISRI SHAH'],
+  'saggian': ['Saggian', 'Band Road'],
+  'shahdara': ['Ravi Road', 'Lari Ada', 'Shahdara'],
+  'civil line': ['Garhi Shahu', 'Mackleod Road'],
+  'manawan': ['Shalimar', 'Mughalpura', 'Wagha'],
+  'anarkali': ['Lower Mall', 'Anarkali', 'Mall-III'],
+  'ichra': ['Ichra', 'Mozang'],
+  'nawankot': ['Wahdat Road', 'Nawankot', 'Multan Road', 'Sherakot'],
+  'cantt': ['Mall-I', 'Mall-II', 'Cantt'],
+  'defence raya': ['Defence-B', 'Bedian'],
+  'airport': ['Defence-A', 'Old Airport', 'Walton', 'New Airport'],
+  'model town': ['Model Town', 'Kot Lakhpat', 'Kahna'],
+  'gulberg': ['gulberg', 'Main Market', 'Shadman'],
+  'township': ['Township', 'Green Town'],
+  'saddar': ['Raiwind', 'Bhobatiyan', 'Kheya Bane Jinnah'],
+  'johar town': ['Johar Town', 'Niaz Baig', 'Manga Mandi']
+};
+
 export default function Section2Form() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isSectorLocked, setIsSectorLocked] = useState(false);
+  const [allowedSectorsList, setAllowedSectorsList] = useState(FULL_SECTORS_LIST);
 
   const [entryDate, setEntryDate] = useState('');
   const [selectedSectorName, setSelectedSectorName] = useState('');
@@ -86,15 +106,20 @@ export default function Section2Form() {
           .eq('id', session.user.id)
           .single();
 
-        if (profile && profile.role === 'sector_officer') {
-          setIsSectorLocked(true);
-          const matched = FULL_SECTORS_LIST.find(
-            s => s.sector.toLowerCase() === profile.jurisdiction.toLowerCase()
+        if (profile && profile.role === 'circle_reader') {
+          const circleKey = profile.jurisdiction.trim().toLowerCase();
+          const mappedSectorNames = CIRCLE_TO_SECTORS_MAP[circleKey] || [profile.jurisdiction];
+          
+          const filteredList = FULL_SECTORS_LIST.filter(s =>
+            mappedSectorNames.some(m => m.toLowerCase() === s.sector.toLowerCase())
           );
-          if (matched) {
-            setSelectedSectorName(matched.sector);
-          } else {
-            setSelectedSectorName(profile.jurisdiction);
+
+          if (filteredList.length > 0) {
+            setAllowedSectorsList(filteredList);
+            if (filteredList.length === 1) {
+              setIsSectorLocked(true);
+              setSelectedSectorName(filteredList[0].sector);
+            }
           }
         }
       }
@@ -180,7 +205,7 @@ export default function Section2Form() {
       if (error) throw error;
       
       alert('Attendance and Nil Diary successfully submitted!');
-      router.push('/sector-dashboard');
+      router.push('/circle-dashboard');
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to submit attendance log.');
     } finally {
@@ -192,7 +217,7 @@ export default function Section2Form() {
     <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
       <div className="mb-6 border-b pb-4">
         <h1 className="text-2xl font-extrabold text-blue-900">Section-2: Digital Challan Diary</h1>
-        <p className="text-sm text-gray-500">Official 45-Sector Attendance & Nil Diary Entry Wizard</p>
+        <p className="text-sm text-gray-500">Official Attendance & Nil Diary Entry Wizard</p>
         <div className="flex gap-2 mt-4">
           <div className={`h-2 flex-1 rounded-full ${step >= 1 ? 'bg-blue-600' : 'bg-gray-200'}`} />
           <div className={`h-2 flex-1 rounded-full ${step >= 2 ? 'bg-blue-600' : 'bg-gray-200'}`} />
@@ -232,7 +257,7 @@ export default function Section2Form() {
                 required
               >
                 <option value="">-- Select Official Sector --</option>
-                {FULL_SECTORS_LIST.map((s) => (
+                {allowedSectorsList.map((s) => (
                   <option key={s.sr} value={s.sector}>
                     {s.sr}. {s.sector}
                   </option>
