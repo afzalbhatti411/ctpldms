@@ -64,10 +64,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between font-sans px-4 py-10">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between font-sans px-4 py-0">
       
       {/* Top Brand / Header */}
-      <div className="max-w-md w-full mx-auto text-center space-y-3 pt-6">
+      <div className="max-w-md w-full mx-auto text-center space-y-2 pt-4 ">
         <div className="inline-flex h-20 w-20 rounded-3xl bg-slate-900 items-center justify-center shadow-xl shadow-cyan-500/20 border border-cyan-400/30 overflow-hidden p-2 mx-auto">
           <img 
             src="/ctpl-logo.png" 
@@ -146,25 +146,17 @@ export default function LoginPage() {
       </div>
 
       {/* Prominent Footer Credits */}
-      <footer className="bg-slate-950 py-6 px-4 text-slate-300">
-        <div className="max-w-[98%] mx-auto flex flex-col items-center justify-center text-center space-y-3">
-          <div className="bg-gradient-to-r from-slate-900 via-cyan-950/40 to-slate-900 border border-cyan-500/30 px-6 py-4 rounded-3xl shadow-2xl w-full max-w-xl">
-            <p className="text-sm font-medium text-slate-300">
-              Designed and developed by <span className="text-cyan-400 font-bold tracking-wide">Traffic Warden Muhammad Afzal Bhatti</span>
-            </p>
-            <p className="text-xs text-slate-400 font-mono mt-1">
-              Full Stack Developer / Mobile App Developer
-            </p>
-            <div className="mt-3 pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-center gap-2 text-xs">
-              <span className="text-slate-400">For Assistance please contact on WhatsApp:</span>
-              <span className="text-cyan-300 font-mono font-bold tracking-wider bg-cyan-500/10 border border-cyan-500/20 px-3 py-1 rounded-full">
-                0333-4080780 &nbsp;|&nbsp; 0321-7310009
-              </span>
-            </div>
-          </div>
-          <p className="text-[11px] text-slate-500">
-            © 2026 City Traffic Police Lahore (CTPL). All rights reserved.
+      <footer className="w-full max-w-md mx-auto py-1 text-slate-300">
+        <div className="bg-gradient-to-r from-slate-900 via-cyan-950/40 to-slate-900 border border-cyan-500/30 px-4 py-2 rounded-2xl shadow-xl flex flex-col items-center justify-center text-center space-y-1">
+          <p className="text-[11px] font-medium text-slate-300">
+            Designed and developed by <span className="text-cyan-400 font-bold tracking-wide">Traffic Warden Muhammad Afzal Bhatti</span>
           </p>
+          <div className="flex flex-wrap items-center justify-center gap-1.5 text-[10px]">
+            <span className="text-slate-400">WhatsApp:</span>
+            <span className="text-cyan-300 font-mono font-bold tracking-wider bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-full">
+              0333-4080780 | 0321-7310009
+            </span>
+          </div>
         </div>
       </footer>
 
